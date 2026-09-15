@@ -13,6 +13,7 @@
 - [国贸导论](courses/国贸导论/)
 - [国际金融](courses/国际金融/)
 - [市场营销](courses/市场营销/)
+- [商务统计](courses/商务统计/)
 - [数学综合-转自 shuosc](courses/数学综合-转自shuosc/)
 - [概率统计](courses/概率统计/)
 - [管理与组织](courses/管理与组织/)
