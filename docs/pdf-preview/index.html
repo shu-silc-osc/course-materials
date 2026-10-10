@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="高数1期末提纲 PDF 在线预览">
+  <title>高数1（期末提纲）在线预览</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.5 system-ui, "Microsoft YaHei", sans-serif; color: #172033; background: #eef1f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 1.2rem; color: #fff; background: #172033; }
+    h1 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+    a { color: inherit; }
+    header a { padding: .4rem .7rem; border: 1px solid #7d8ba5; border-radius: .35rem; text-decoration: none; white-space: nowrap; }
+    nav { display: flex; align-items: center; justify-content: center; gap: .55rem; padding: .65rem; background: #fff; border-bottom: 1px solid #d7dce4; }
+    button, input { min-height: 2.25rem; border: 1px solid #c5ccd7; border-radius: .35rem; background: #fff; color: inherit; font: inherit; }
+    button { min-width: 2.5rem; padding: .25rem .65rem; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    input { width: 3.5rem; padding: .2rem; text-align: center; }
+    #status { color: #526078; font-size: .9rem; min-width: 7rem; text-align: center; }
+    main { display: grid; place-items: start center; padding: 1rem; }
+    #paper { width: min(100%, 1100px); min-height: 70vh; display: grid; place-items: center; overflow: auto; }
+    canvas { display: block; max-width: 100%; height: auto; background: #fff; box-shadow: 0 2px 16px #17203324; }
+    #message { margin-top: 2rem; color: #526078; text-align: center; }
+    @media (max-width: 560px) { header { padding: .65rem; } h1 { font-size: .95rem; } nav { gap: .3rem; padding: .5rem .25rem; } button { padding: .2rem .45rem; } #status { min-width: 5.5rem; font-size: .8rem; } main { padding: .5rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>高数1（期末提纲）</h1>
+    <a href="./study.pdf" download>下载 PDF</a>
+  </header>
+  <nav aria-label="PDF controls">
+    <button id="prev" type="button" aria-label="上一页">上一页</button>
+    <label>页码 <input id="page" type="number" min="1" value="1" aria-label="当前页码"> / <span id="pages">…</span></label>
+    <button id="next" type="button" aria-label="下一页">下一页</button>
+    <button id="minus" type="button" aria-label="缩小">−</button>
+    <button id="plus" type="button" aria-label="放大">+</button>
+    <span id="status" role="status" aria-live="polite">正在加载 PDF…</span>
+  </nav>
+  <main>
+    <div id="paper"><div id="message">正在载入文档…</div><canvas id="canvas" hidden></canvas></div>
+  </main>
+  <script type="module">
+    import * as pdfjsLib from "./assets/pdf.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "./assets/pdf.worker.mjs";
+
+    const canvas = document.querySelector("#canvas");
+    const context = canvas.getContext("2d", { alpha: false });
+    const pageInput = document.querySelector("#page");
+    const pagesLabel = document.querySelector("#pages");
+    const status = document.querySelector("#status");
+    const message = document.querySelector("#message");
+    let pdf;
+    let pageNumber = 1;
+    let zoom = 1;
+    let rendering = false;
+    let pending = false;
+
+    async function renderPage() {
+      if (!pdf || rendering) { pending = true; return; }
+      rendering = true;
+      pending = false;
+      try {
+        const page = await pdf.getPage(pageNumber);
+        const base = page.getViewport({ scale: 1 });
+        const available = Math.max(240, document.querySelector("#paper").clientWidth - 16);
+        const scale = Math.min(available / base.width, 1.5) * zoom;
+        const viewport = page.getViewport({ scale });
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * ratio);
+        canvas.height = Math.floor(viewport.height * ratio);
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        await page.render({ canvasContext: context, viewport, transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0] }).promise;
+        canvas.hidden = false;
+        message.hidden = true;
+        pageInput.value = String(pageNumber);
+        status.textContent = `${Math.round(scale * 100)}%`;
+        document.querySelector("#prev").disabled = pageNumber <= 1;
+        document.querySelector("#next").disabled = pageNumber >= pdf.numPages;
+      } catch (error) {
+        status.textContent = "渲染失败";
+        message.hidden = false;
+        message.textContent = `无法显示 PDF：${error.message}`;
+      } finally {
+        rendering = false;
+        if (pending) renderPage();
+      }
+    }
+
+    document.querySelector("#prev").addEventListener("click", () => { if (pageNumber > 1) { pageNumber--; renderPage(); } });
+    document.querySelector("#next").addEventListener("click", () => { if (pageNumber < pdf.numPages) { pageNumber++; renderPage(); } });
+    document.querySelector("#minus").addEventListener("click", () => { zoom = Math.max(.5, zoom - .1); renderPage(); });
+    document.querySelector("#plus").addEventListener("click", () => { zoom = Math.min(2, zoom + .1); renderPage(); });
+    pageInput.addEventListener("change", () => { pageNumber = Math.min(pdf.numPages, Math.max(1, Number(pageInput.value) || 1)); renderPage(); });
+    window.addEventListener("resize", () => renderPage());
+
+    try {
+      pdf = await pdfjsLib.getDocument("./study.pdf").promise;
+      pagesLabel.textContent = String(pdf.numPages);
+      pageInput.max = String(pdf.numPages);
+      await renderPage();
+    } catch (error) {
+      status.textContent = "加载失败";
+      message.textContent = `无法加载 PDF：${error.message}`;
+    }
+  </script>
+</body>
+</html>
