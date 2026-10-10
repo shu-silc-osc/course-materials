@@ -98,7 +98,7 @@
     window.addEventListener("resize", () => renderPage());
 
     try {
-      pdf = await pdfjsLib.getDocument("./study.pdf").promise;
+      pdf = await pdfjsLib.getDocument({ url: "./study.pdf" }).promise;
       pagesLabel.textContent = String(pdf.numPages);
       pageInput.max = String(pdf.numPages);
       await renderPage();
